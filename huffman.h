@@ -37,27 +37,15 @@ struct TreeNode
 void write_bit(char &aux, int &size, bool value);
 void write_byte(char &whole, char &part, int &size);
 bool is_leaf(TreeNode*& node);
-void parsing_in_order(TreeNode*& node);
 void parsing_pre_order(TreeNode*& node, char& aux, int& size, string code);
 void clear_treeNode(TreeNode*& node);
 void sort_pointer(LSL<TreeNode*> &list);
-void write_file();
+void write_file(const char *orgFile);
 void compress(const char* orgFile);
 void decompress(const char* orgFile);
 
 bool is_leaf(TreeNode*& node)
 { return (node->left == nullptr && node->right == nullptr); }
-
-void parsing_in_order(TreeNode*& node)
-{
-    if (node != nullptr){
-        parsing_in_order(node->left);
-        cout << node->data->first << " (" << int(node->data->first) << ") " << node->data->second;
-        if (is_leaf(node))
-            cout << " (HOJA) ";
-        parsing_in_order(node->right);
-    }
-}
 
 void parsing_pre_order(TreeNode*& node, char& aux, int& size, string code)
 {
@@ -91,11 +79,8 @@ void write_byte(char &whole, char &part, int &size)
             borrar |= char(pow(2, i - 1));
         part &= borrar;
     }
-    else{
+    else
         byteList.push_back(whole);
-        bitset<8> bit = whole;
-        cout << "write_byte (" << whole << ": " << int(whole) << ") " << size << ": " << bit << endl;
-    }
 }
 
 void write_bit(char &aux, int &size, bool value)
@@ -107,8 +92,6 @@ void write_bit(char &aux, int &size, bool value)
         aux |= 0x0;
     if (size == 7){
         byteList.push_back(aux);
-        bitset<8> bit = aux;
-        cout << "write_bit " << size << ": " << bit << endl;
         size = -1;
         aux = 0;
     }
@@ -147,14 +130,47 @@ void sort_pointer(LSL<TreeNode*> &list)
     }
 }
 
-void write_file()
+void write_file(const char *orgFile)
 {
+    char item;
+    char aux = 0;
+    int size = 0;
+    string code;
     fstream output("respaldo.cmp", ios::out | ios::binary);
+    fstream input;
+
     for (size_t i = 0; i < byteList.size(); ++i)
         output.write((char*)&byteList[i], sizeof(char));
-
+    if (byteList.back() != 0)
+        output.write((char*)&aux, sizeof(char));
     
+    for (size_t i = 0; i < codes.size(); ++i)
+        cout << *codes.get_position(i).key << ": "
+             << *codes.get_position(i).value << endl;
 
+    input.open(orgFile, ios::in | ios::binary);
+    while (!input.eof()){
+        input.read((char*)&item, sizeof(item));
+        if (input.eof())
+            break;
+        code = *codes[item];
+        cout << "code: " << code << endl;
+        for (size_t i = 0; i < code.size(); ++i){
+            aux <<= 1;
+            if (code[i] == '1')
+                aux |= 1;
+            if (size == BYTE_L - 1){
+                output.write((char*)&aux, sizeof(char));
+                size = -1;
+                aux = 0;
+            }
+            ++size;
+        }
+    }
+    if (size)
+        output.write((char*)&aux, sizeof(char));
+    
+    input.close();
     output.close();
 }
 
@@ -218,7 +234,7 @@ void compress(const char* orgFile)
     if (byteSize)
         byteList.push_back(byte);
 
-    write_file();
+    write_file(orgFile);
 
     clear_treeNode(root);
 }
