@@ -13,6 +13,7 @@ using namespace std;
 
 LSL<char> byteList;
 HashMap <char, string> codes;
+HashMap <string, char> codesOut;
 
 struct TreeNode
 {
@@ -210,12 +211,10 @@ TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size, str
 {
     if (read_bit(stream, byte, size)){
         char aux = read_byte(stream, byte, size);
-        cout << aux << "(" << int(aux) << ")" << endl;
-        codes.insert(aux, code);
+        codesOut.insert(code, aux);
         return new TreeNode({aux, 0});
     }
     else{
-        cout << "*" << endl;
         node = new TreeNode({});
         node->left = read_node(node, stream, byte, size, code + "0");
         node->right = read_node(node, stream, byte, size, code + "1");
@@ -292,6 +291,8 @@ void decompress(const char *orgFile)
 {
     TreeNode *root;
     fstream input(orgFile, ios::in | ios::binary);
+    ofstream output;
+    string str;
     int size = 0;
     char byte;
     char bit;
@@ -306,8 +307,25 @@ void decompress(const char *orgFile)
     for (int i = 0; i < codes.size(); ++i)
         cout << *codes.get_position(i).key << "("
              << *codes.get_position(i).key << "): " << *codes.get_position(i).value << endl;
+    while (!read_bit(input, byte, size) && size);
+    read_byte(input, byte, size);
+    output.open("hola_des.txt", ios::binary);
+    while (!input.eof()){
+        string aux = read_bit(input, byte, size) ? "1" : "0";
+        cout << aux;
+        if (input.eof())
+            break;
+        str += aux;
+        char *res = codesOut[str];
+        if (res != nullptr){
+            cout << "str: " << str << endl;
+            str = "";
+            output.write((char*)res, sizeof(char));
+        }
+    }
 
     input.close();
+    output.close();
     clear_treeNode(root);
 }
 
