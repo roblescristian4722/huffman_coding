@@ -14,6 +14,7 @@ using namespace std;
 LSL<char> byteList;
 HashMap <char, string> codes;
 HashMap <string, char> codesOut;
+long posLen;
 
 struct TreeNode
 {
@@ -141,34 +142,37 @@ void write_file(const char *orgFile)
     char item;
     char aux = 0;
     int size = 0;
+    unsigned int len;
     string code;
     fstream output("respaldo.cmp", ios::out | ios::binary);
     fstream input;
 
-    for (size_t i = 0; i < byteList.size(); ++i)
-        output.write((char*)&byteList[i], sizeof(char));
-    if (byteList.back() != 0)
+    for (size_t i = 0; i < byteList.size(); ++i){
+        if (i != byteList.size() - 1 && byteList[i] != 0)
+            output.write((char*)&byteList[i], sizeof(char));
+    }
+    if (size){
+        aux <<= BYTE_L - size;
+        bitset<8> bit = aux;
+        cout << "aux: " << bit << endl;
         output.write((char*)&aux, sizeof(char));
-    
+    }
+    aux = 0;
+    posLen = output.tellp();
+    output.write((char*)&len, sizeof(len));
     for (size_t i = 0; i < codes.size(); ++i)
         cout << *codes.get_position(i).key << ": "
              << *codes.get_position(i).value << endl;
-
     input.open(orgFile, ios::in | ios::binary);
     while (!input.eof()){
         input.read((char*)&item, sizeof(item));
         if (input.eof())
             break;
         code = *codes[item];
-        cout << "code: " << code << endl;
         for (size_t i = 0; i < code.size(); ++i){
-            bitset<8> bit = aux;
-            cout << "aux: " << bit << endl;
             aux <<= 1;
             if (code[i] == '1')
                 aux |= 1;
-            bit = aux;
-            cout << "aux: " << bit << endl;
             if (size == BYTE_L - 1){
                 output.write((char*)&aux, sizeof(char));
                 size = -1;
@@ -176,12 +180,14 @@ void write_file(const char *orgFile)
             }
             ++size;
         }
+        ++len;
     }
     if (size){
         aux <<= BYTE_L - size;
         output.write((char*)&aux, sizeof(char));
     }
-    
+    output.seekp(posLen);
+    output.write((char*)&len, sizeof(len));
     input.close();
     output.close();
 }
@@ -194,6 +200,7 @@ bool read_bit(fstream &stream, char &byte, int &size)
     aux = char(pow(2, BYTE_L - size - 1));
     ++size;
     size %= BYTE_L;
+    cout << bool(byte & aux);
     return byte & aux;
 }
 
@@ -211,10 +218,13 @@ char read_byte(fstream &stream, char &byte, int &size)
                 borrar ^= char(pow(2, i));
             }
         }
+        cout << bitset<8>(aux |= borrar);
         aux |= borrar;
     }
-    else
+    else{
         aux = byte;
+        cout << bitset<8>(byte);
+    }
     return aux;
 }
 
@@ -305,6 +315,7 @@ void decompress(const char *orgFile)
     ofstream output;
     string str;
     int size = 0;
+    unsigned int len;
     char byte;
     char bit;
     char data = 0;
@@ -315,13 +326,11 @@ void decompress(const char *orgFile)
         throw range_error("Origin file not found");
 
     read_node(root, input, byte, size, "");
-    for (int i = 0; i < codes.size(); ++i)
-        cout << *codes.get_position(i).key << "("
-             << *codes.get_position(i).key << "): " << *codes.get_position(i).value << endl;
-    while (!read_bit(input, byte, size) && size);
-    read_byte(input, byte, size);
+    size = 0;
+    input.read((char*)&len, sizeof(len));
+    cout << endl << len << endl;
     output.open("hola_des.txt", ios::binary);
-    while (!input.eof()){
+    while (!input.eof() && len){
         string aux = read_bit(input, byte, size) ? "1" : "0";
         cout << aux;
         if (input.eof())
@@ -329,7 +338,7 @@ void decompress(const char *orgFile)
         str += aux;
         char *res = codesOut[str];
         if (res != nullptr){
-            cout << "str: " << str << endl;
+            --len;
             str = "";
             output.write((char*)res, sizeof(char));
         }
