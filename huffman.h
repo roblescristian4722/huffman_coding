@@ -199,10 +199,6 @@ char read_byte(fstream &stream, char &byte, int &size)
                 borrar ^= char(pow(2, i));
             }
         }
-        bitset<8> bit2 = borrar;
-        cout << "byte: " << bit2 << endl;
-        bitset<8> bit = aux;
-        cout << "aux: " << bit << endl;
         aux |= borrar;
     }
     else
@@ -210,9 +206,20 @@ char read_byte(fstream &stream, char &byte, int &size)
     return aux;
 }
 
-TreeNode& read_node(TreeNode*& node, fstream& stream, char& byte, int& size)
+TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size)
 {
-    
+    if (read_bit(stream, byte, size)){
+        char aux = read_byte(stream, byte, size);
+        cout << aux << "(" << int(aux) << ")" << endl;
+        return new TreeNode({aux, 0});
+    }
+    else{
+        cout << "*" << endl;
+        node = new TreeNode({});
+        node->left = read_node(node, stream, byte, size);
+        node->right = read_node(node, stream, byte, size);
+    }
+    return node;
 }
 
 /// Compresses a given file using Huffman algorithm
@@ -282,8 +289,7 @@ void compress(const char* orgFile)
 /// Decompresses a given file using Huffman algorithm
 void decompress(const char *orgFile)
 {
-    TreeNode *root = new TreeNode({0, 0});
-    TreeNode *auxItem = root;
+    TreeNode *root;
     fstream input(orgFile, ios::in | ios::binary);
     int size = 0;
     char byte;
@@ -295,46 +301,10 @@ void decompress(const char *orgFile)
     if (!input.is_open())
         throw range_error("Origin file not found");
 
-    read_bit(input, byte, size);
+    read_node(root, input, byte, size);
 
-    bitset<8> bitAux = read_byte(input, byte, size);
-    cout << bitAux << endl;
-
-    bitAux = read_byte(input, byte, size);
-    cout << bitAux << endl;
-
-    bitAux = read_byte(input, byte, size);
-    cout << bitAux << endl;
-    /*
-    while (!input.eof()){
-        input.read((char*)&byte, sizeof(char));
-        if (input.eof())
-            break;
-        if (!byte)
-            tree = false;
-        bitset<8> dataBit = byte;
-        cout << "data: " << dataBit << endl;
-        for (int i = BYTE_L - 1; i >= 0 && tree; --i){
-            bit = 0;
-            bit = char(pow(2, i));
-            bit &= byte;
-            if (treeSize){
-                if (!bit){
-                    auxItem->left = new TreeNode({0,0});
-                    auxItem = auxItem->left;
-                }
-                else{
-                    data = byte << (BYTE_L - i);
-                    input.read((char*)& byte, sizeof(char));
-                    data |= byte >> i;
-                }
-            }
-            ++treeSize;
-        }
-    }
-    
     input.close();
-    clear_treeNode(root);*/
+    clear_treeNode(root);
 }
 
 #endif // HUFFMAN_H
