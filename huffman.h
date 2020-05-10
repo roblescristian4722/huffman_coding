@@ -69,6 +69,11 @@ void write_byte(char &whole, char &part, int &size)
     if (size){
         char tmp = (whole >> size);
         char borrar = 0;
+        if ((unsigned char)tmp >= 0x80){
+            for (int i = BYTE_L - 1; i >= size; --i){
+                tmp ^= char(pow(2, i));
+            }
+        }
         part <<= BYTE_L - size;
         tmp |= part;
         byteList.push_back(tmp);
@@ -157,9 +162,13 @@ void write_file(const char *orgFile)
         code = *codes[item];
         cout << "code: " << code << endl;
         for (size_t i = 0; i < code.size(); ++i){
+            bitset<8> bit = aux;
+            cout << "aux: " << bit << endl;
             aux <<= 1;
             if (code[i] == '1')
                 aux |= 1;
+            bit = aux;
+            cout << "aux: " << bit << endl;
             if (size == BYTE_L - 1){
                 output.write((char*)&aux, sizeof(char));
                 size = -1;
@@ -168,8 +177,10 @@ void write_file(const char *orgFile)
             ++size;
         }
     }
-    if (size)
+    if (size){
+        aux <<= BYTE_L - size;
         output.write((char*)&aux, sizeof(char));
+    }
     
     input.close();
     output.close();
