@@ -206,18 +206,19 @@ char read_byte(fstream &stream, char &byte, int &size)
     return aux;
 }
 
-TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size)
+TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size, string code)
 {
     if (read_bit(stream, byte, size)){
         char aux = read_byte(stream, byte, size);
         cout << aux << "(" << int(aux) << ")" << endl;
+        codes.insert(aux, code);
         return new TreeNode({aux, 0});
     }
     else{
         cout << "*" << endl;
         node = new TreeNode({});
-        node->left = read_node(node, stream, byte, size);
-        node->right = read_node(node, stream, byte, size);
+        node->left = read_node(node, stream, byte, size, code + "0");
+        node->right = read_node(node, stream, byte, size, code + "1");
     }
     return node;
 }
@@ -301,7 +302,10 @@ void decompress(const char *orgFile)
     if (!input.is_open())
         throw range_error("Origin file not found");
 
-    read_node(root, input, byte, size);
+    read_node(root, input, byte, size, "");
+    for (int i = 0; i < codes.size(); ++i)
+        cout << *codes.get_position(i).key << "("
+             << *codes.get_position(i).key << "): " << *codes.get_position(i).value << endl;
 
     input.close();
     clear_treeNode(root);
