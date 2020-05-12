@@ -70,21 +70,27 @@ void write_byte(char &whole, char &part, int &size)
     if (size){
         char tmp = (whole >> size);
         char borrar = 0;
+        int shift = BYTE_L - size;
+
+        cout << "tmp: " << bitset<8>(tmp) << endl;
         if ((unsigned char)tmp >= 0x80){
-            for (int i = BYTE_L - 1; i >= size; --i){
+            for (int i = BYTE_L - 1; i >= shift; --i)
                 tmp ^= char(pow(2, i));
-            }
         }
         part <<= BYTE_L - size;
+        if (part & 0x1 == 0x1){
+            for (int i = 0; i < BYTE_L - size; ++i)
+                part ^= char(pow(2, i));
+        }
         tmp |= part;
         byteList.push_back(tmp);
-        bitset<8> bit = part;
-        cout << "write_byte (" << whole << ": " << int(whole) << ") " << size << ": " << bit << endl;
+        cout << "tmp: " << bitset<8>(tmp) << endl;
         part = (whole << BYTE_L - size);
         part >>= BYTE_L - size;
         for (int i = size; i > 0; --i)
             borrar |= char(pow(2, i - 1));
         part &= borrar;
+        cout << "part: " << bitset<8>(part) << endl << endl;
     }
     else
         byteList.push_back(whole);
@@ -267,7 +273,6 @@ void compress(const char* orgFile)
         file.read((char*)&aux, sizeof(char));
         if (file.eof())
             break;
-
         if (items[aux] == nullptr)
             items.insert(aux, 1);
         else
