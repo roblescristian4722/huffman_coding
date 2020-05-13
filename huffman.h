@@ -11,6 +11,7 @@
 #define BYTE_L 8
 using namespace std;
 
+/* ESSENTIAL GLOBAL VARIABLES */
 LSL<char> byteList;
 HashMap <char, string> codes;
 HashMap <string, char> codesOut;
@@ -36,20 +37,33 @@ struct TreeNode
     { return this->data->second > other.data->second; }
 };
 
+/* METHOD DECLARATIONS */
+/* TREE METHODS */
+bool is_leaf(TreeNode*& node);
+void preorder_parsing_write(TreeNode*& node, char& aux, int& size, string code);
+void clear_treeNode(TreeNode*& node);
+/* WRITING METHODS */
 void write_bit(char &aux, int &size, bool value);
 void write_byte(char &whole, char &part, int &size);
-bool is_leaf(TreeNode*& node);
-void parsing_pre_order(TreeNode*& node, char& aux, int& size, string code);
-void clear_treeNode(TreeNode*& node);
+void write_file(const char *orgFile, const char *dstFile);
+/* READING METHODS */
+bool read_bit(fstream &stream, char &byte, int &size);
+char read_byte(fstream &stream, char &byte, int &size);
+TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size, string code);
+/* SORTING (LSL) */
 void sort_pointer(LSL<TreeNode*> &list);
-void write_file(const char *orgFile);
-void compress(const char* orgFile);
-void decompress(const char* orgFile);
+/* COMPRESSING / DECOMPRESSING */
+void compress(const char* orgFile, const char* dstFile);
+void decompress(const char *orgFile, const char *dstFile);
 
+/* METHOD DEFINITIONS */
+/* TREE METHODS */
+/// Returns true if the given node is has no children
 bool is_leaf(TreeNode*& node)
 { return (node->left == nullptr && node->right == nullptr); }
 
-void parsing_pre_order(TreeNode*& node, char& aux, int& size, string code)
+///
+void preorder_parsing_write(TreeNode*& node, char& aux, int& size, string code)
 {
     if (node != nullptr){
         if (is_leaf(node)){
@@ -60,42 +74,54 @@ void parsing_pre_order(TreeNode*& node, char& aux, int& size, string code)
         else
             write_bit(aux, size, 0);
 
-        parsing_pre_order(node->left, aux, size, code + "0");
-        parsing_pre_order(node->right, aux, size, code + "1");
+        preorder_parsing_write(node->left, aux, size, code + "0");
+        preorder_parsing_write(node->right, aux, size, code + "1");
     }
 }
 
+// Removes all nodes from a tree
+void clear_treeNode(TreeNode*& node)
+{
+   if (node != nullptr){
+       clear_treeNode(node->left);
+       clear_treeNode(node->right);
+       delete node;
+   }
+   node = nullptr;
+}
+
+/* WRITING METHODS  */
+/// Stores a whole byte in the data list that will be written in a file
 void write_byte(char &whole, char &part, int &size)
 {
     if (size){
         char tmp = (whole >> size);
-        char borrar = 0;
+        char erase = 0;
         int shift = BYTE_L - size;
 
-        cout << "tmp: " << bitset<8>(tmp) << endl;
         if ((unsigned char)tmp >= 0x80){
             for (int i = BYTE_L - 1; i >= shift; --i)
                 tmp ^= char(pow(2, i));
         }
-        part <<= BYTE_L - size;
+        part <<= shift;
         if (part & 0x1 == 0x1){
-            for (int i = 0; i < BYTE_L - size; ++i)
+            for (int i = 0; i < shift; ++i)
                 part ^= char(pow(2, i));
         }
         tmp |= part;
         byteList.push_back(tmp);
-        cout << "tmp: " << bitset<8>(tmp) << endl;
-        part = (whole << BYTE_L - size);
-        part >>= BYTE_L - size;
+        part = (whole << shift);
+        part >>= shift;
         for (int i = size; i > 0; --i)
-            borrar |= char(pow(2, i - 1));
-        part &= borrar;
-        cout << "part: " << bitset<8>(part) << endl << endl;
+            erase |= char(pow(2, i - 1));
+        part &= erase;
     }
     else
         byteList.push_back(whole);
 }
 
+/// Writes a bit in an auxiliar char variable which will be stored in the data
+/// list once it gets filled with all 8 bits.
 void write_bit(char &aux, int &size, bool value)
 {
     aux <<= 1;
@@ -111,17 +137,7 @@ void write_bit(char &aux, int &size, bool value)
     ++size;
 }
 
-// Removes all nodes from a tree
-void clear_treeNode(TreeNode*& node)
-{
-   if (node != nullptr){
-       clear_treeNode(node->left);
-       clear_treeNode(node->right);
-       delete node;
-   }
-   node = nullptr;
-}
-
+/* SORTING (LSL) */
 /// Sorts a LSL that stores pointers
 void sort_pointer(LSL<TreeNode*> &list)
 {
@@ -143,38 +159,49 @@ void sort_pointer(LSL<TreeNode*> &list)
     }
 }
 
-void write_file(const char *orgFile)
+/// Writes the data from the list to a given file and then reads the data from
+/// the origin file so they can be translated and then written to the destiny file
+/// using a hash map.
+void write_file(const char *orgFile, const char *dstFile)
 {
     char item;
     char aux = 0;
     int size = 0;
     unsigned int len;
     string code;
-    fstream output("respaldo.cmp", ios::out | ios::binary);
+    fstream output(dstFile, ios::out | ios::binary);
     fstream input;
 
+    // The data list (containing the compressed binary tree)
+    // gets written in a given file
     for (size_t i = 0; i < byteList.size(); ++i){
         if (i != byteList.size() - 1 && byteList[i] != 0)
             output.write((char*)&byteList[i], sizeof(char));
     }
+    // If aux still has some data left then it gets a shift left and
+    // then gets written into the file
     if (size){
         aux <<= BYTE_L - size;
-        bitset<8> bit = aux;
-        cout << "aux: " << bit << endl;
         output.write((char*)&aux, sizeof(char));
     }
     aux = 0;
+    // We write an unsigned int into the file and store it's file position
+    // so we can modify it later, it will store the size of characters to be read.
     posLen = output.tellp();
     output.write((char*)&len, sizeof(len));
+    // Every code gets printed along with the value it represents
     for (size_t i = 0; i < codes.size(); ++i)
         cout << *codes.get_position(i).key << ": "
              << *codes.get_position(i).value << endl;
+    // We read every character from the origin file and translate it
     input.open(orgFile, ios::in | ios::binary);
     while (!input.eof()){
         input.read((char*)&item, sizeof(item));
         if (input.eof())
             break;
         code = *codes[item];
+        // We store every bit on an aux variable, when it gets filled with
+        // 8 characters it gets written into the destination file
         for (size_t i = 0; i < code.size(); ++i){
             aux <<= 1;
             if (code[i] == '1')
@@ -188,6 +215,8 @@ void write_file(const char *orgFile)
         }
         ++len;
     }
+    // If there are bits left in the aux variable we apply a shift
+    // left and we write it into the destination file.
     if (size){
         aux <<= BYTE_L - size;
         output.write((char*)&aux, sizeof(char));
@@ -198,6 +227,9 @@ void write_file(const char *orgFile)
     output.close();
 }
 
+/* READING METHODS */
+/// Reads a bit from the origin file and returns true if the given bit
+/// is 1, otherwise returns 0
 bool read_bit(fstream &stream, char &byte, int &size)
 {
     char aux;
@@ -206,34 +238,33 @@ bool read_bit(fstream &stream, char &byte, int &size)
     aux = char(pow(2, BYTE_L - size - 1));
     ++size;
     size %= BYTE_L;
-    cout << bool(byte & aux);
     return byte & aux;
 }
 
+/// reads a whole byte from the origin file
 char read_byte(fstream &stream, char &byte, int &size)
 {
     char aux;
-    char borrar;
+    char erase;
 
     aux = byte << size;
     stream.read((char*)&byte, sizeof(char));
     if (size){
-        borrar = byte >> BYTE_L - size;
-        if ((unsigned char)borrar >= 0x80){
+        erase = byte >> BYTE_L - size;
+        if ((unsigned char)erase >= 0x80){
             for (int i = BYTE_L - 1; i >= size; --i){
-                borrar ^= char(pow(2, i));
+                erase ^= char(pow(2, i));
             }
         }
-        cout << bitset<8>(aux |= borrar);
-        aux |= borrar;
+        aux |= erase;
     }
-    else{
+    else
         aux = byte;
-        cout << bitset<8>(byte);
-    }
     return aux;
 }
 
+/// Reads the "header" from the origin file so it can recreate the compressed binary tree
+/// using a preorder parsing.
 TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size, string code)
 {
     if (read_bit(stream, byte, size)){
@@ -249,8 +280,9 @@ TreeNode* read_node(TreeNode*& node, fstream& stream, char& byte, int& size, str
     return node;
 }
 
-/// Compresses a given file using Huffman algorithm
-void compress(const char* orgFile)
+/* COMPRESSING / DECOMPRESSING (PUBLIC METHODS) */
+/// Compresses a given file using the Huffman algorithm
+void compress(const char *orgFile, const char *dstFile)
 {
     HashMap<char, size_t> items;
     LSL<TreeNode*> itemList;
@@ -302,18 +334,20 @@ void compress(const char* orgFile)
     // Then turn the tree into binary code so it can get stored
     // in a file using write_file and also we get the code for each character
     // and store it in a hash map
-    parsing_pre_order(root, byte, byteSize, "");
+    preorder_parsing_write(root, byte, byteSize, "");
     aux = 0;
     write_byte(aux, byte, byteSize);
     if (byteSize)
         byteList.push_back(byte);
 
-    write_file(orgFile);
-
+    write_file(orgFile, dstFile);
+    byteList.clear();
+    codes.clear();
     clear_treeNode(root);
+
 }
-/// Decompresses a given file using Huffman algorithm
-void decompress(const char *orgFile)
+/// Decompresses a given file using the Huffman algorithm
+void decompress(const char *orgFile, const char *dstFile)
 {
     TreeNode *root;
     fstream input(orgFile, ios::in | ios::binary);
@@ -330,14 +364,17 @@ void decompress(const char *orgFile)
     if (!input.is_open())
         throw range_error("Origin file not found");
 
+    // We recreate the compressed file and fill a hash map with
+    // every character available along with it's translation
     read_node(root, input, byte, size, "");
     size = 0;
     input.read((char*)&len, sizeof(len));
-    cout << endl << len << endl;
-    output.open("hola_des.txt", ios::binary);
+    cout << endl << "characters: " << len << endl;
+    output.open(dstFile, ios::binary);
+    // Then we read every byte from the origin file and translate it
+    // using a hash map that stores every character translation
     while (!input.eof() && len){
         string aux = read_bit(input, byte, size) ? "1" : "0";
-        cout << aux;
         if (input.eof())
             break;
         str += aux;
@@ -351,6 +388,7 @@ void decompress(const char *orgFile)
 
     input.close();
     output.close();
+    codesOut.clear();
     clear_treeNode(root);
 }
 
